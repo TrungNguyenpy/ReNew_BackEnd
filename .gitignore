@@ -1,0 +1,39 @@
+### Android / Gradle Build ###
+.gradle/
+build/
+app/build/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# Giữ lại Gradle Wrapper để người khác clone về chạy được gradlew
+!gradle/wrapper/gradle-wrapper.jar
+
+### Android Studio / IntelliJ IDEA ###
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+### Signed APKs & Keystore (QUAN TRỌNG) ###
+# Không bao giờ commit file Keystore dùng để ký ứng dụng
+*.jks
+*.keystore
+*.pepk
+
+### Built Packages ###
+*.apk
+*.aab
+
+### Environment & Secrets ###
+.env
+*.env.local
+.env.*.local
+# Nếu có file secrets (ví dụ: Google Maps API key, Firebase configs nhạy cảm)
+secrets.properties
+
+### OS Generated ###
+.DS_Store
+Thumbs.db
