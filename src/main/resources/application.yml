@@ -43,3 +43,8 @@ app:
   stripe:
     secret-key: ${STRIPE_SECRET_KEY:}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  dashboard:
+    # A used-goods listing is often a single unique unit, so "low stock" is a small number.
+    low-stock-threshold: 3
+    # Reporting day/month boundaries follow the shop's local time, not UTC.
+    timezone: Asia/Ho_Chi_Minh

@@ -21,11 +21,8 @@ interface ProductRepository : JpaRepository<Product, UUID> {
 
     fun existsByBrandId(brandId: UUID): Boolean
 
-    /**
-     * Combined search/filter query backing the product listing page (spec section 3:
-     * search, filter by category/brand/price range/condition, only active & visible items).
-     * Each filter parameter is optional — pass null to skip that condition.
-     */
+    fun countByStockQuantityLessThanEqual(threshold: Int): Long
+
     @Query(
         """
         SELECT p FROM Product p

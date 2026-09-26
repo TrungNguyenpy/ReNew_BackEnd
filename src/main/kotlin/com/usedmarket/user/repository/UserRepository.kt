@@ -1,5 +1,6 @@
 package com.usedmarket.user.repository
 
+import com.usedmarket.user.entity.RoleName
 import com.usedmarket.user.entity.User
 import org.springframework.data.jpa.repository.JpaRepository
 import java.util.Optional
@@ -10,4 +11,6 @@ interface UserRepository : JpaRepository<User, UUID> {
     fun findByEmail(email: String): Optional<User>
 
     fun existsByEmail(email: String): Boolean
+
+    fun countByRole(role: RoleName): Long
 }

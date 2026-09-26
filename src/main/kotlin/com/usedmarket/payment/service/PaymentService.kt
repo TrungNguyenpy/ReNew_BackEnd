@@ -8,6 +8,8 @@ import com.stripe.param.PaymentIntentCreateParams
 import com.usedmarket.common.exception.BadRequestException
 import com.usedmarket.common.exception.PaymentException
 import com.usedmarket.common.exception.ResourceNotFoundException
+import com.usedmarket.notification.entity.NotificationType
+import com.usedmarket.notification.service.NotificationService
 import com.usedmarket.order.repository.OrderRepository
 import com.usedmarket.order.service.OrderService
 import com.usedmarket.payment.dto.PaymentIntentResponse
@@ -30,6 +32,7 @@ class PaymentService(
     private val orderRepository: OrderRepository,
     private val paymentRepository: PaymentRepository,
     private val orderService: OrderService,
+    private val notificationService: NotificationService,
     @Value("\${app.stripe.webhook-secret}") private val webhookSecret: String
 ) {
 
@@ -129,16 +132,38 @@ class PaymentService(
         val payment = paymentRepository.findByOrderId(orderId).orElse(null) ?: return
         payment.stripeChargeId = intent.latestCharge
 
+        val order = orderRepository.findById(orderId).orElse(null)
+
         if (succeeded) {
             payment.status = PaymentStatus.SUCCEEDED
             payment.paidAt = Instant.now()
             paymentRepository.save(payment)
             orderService.markPaymentSucceeded(orderId)
+            order?.let {
+                notificationService.notify(
+                    user = it.customer,
+                    type = NotificationType.PAYMENT_SUCCESS,
+                    title = "Payment successful",
+                    message = "Payment for order ${it.orderNumber} was successful.",
+                    referenceType = "ORDER",
+                    referenceId = orderId
+                )
+            }
         } else {
             payment.status = PaymentStatus.FAILED
             payment.failureReason = intent.lastPaymentError?.message
             paymentRepository.save(payment)
             orderService.markPaymentFailed(orderId)
+            order?.let {
+                notificationService.notify(
+                    user = it.customer,
+                    type = NotificationType.PAYMENT_FAILED,
+                    title = "Payment failed",
+                    message = "Payment for order ${it.orderNumber} could not be completed.",
+                    referenceType = "ORDER",
+                    referenceId = orderId
+                )
+            }
         }
     }
 

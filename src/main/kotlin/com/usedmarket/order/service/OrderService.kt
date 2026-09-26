@@ -12,6 +12,8 @@ import com.usedmarket.coupon.entity.DiscountType
 import com.usedmarket.coupon.repository.CouponRepository
 import com.usedmarket.coupon.repository.CouponUsageRepository
 import com.usedmarket.inventory.service.InventoryService
+import com.usedmarket.notification.entity.NotificationType
+import com.usedmarket.notification.service.NotificationService
 import com.usedmarket.order.dto.CheckoutRequest
 import com.usedmarket.order.dto.OrderResponse
 import com.usedmarket.order.dto.OrderStatusHistoryResponse
@@ -60,6 +62,7 @@ class OrderService(
     private val shipmentRepository: ShipmentRepository,
     private val inventoryService: InventoryService,
     private val userRepository: UserRepository,
+    private val notificationService: NotificationService,
     private val orderMapper: OrderMapper,
     @Value("\${app.shipping.flat-fee}") private val flatShippingFee: BigDecimal,
     @Value("\${app.shipping.free-threshold}") private val freeShippingThreshold: BigDecimal
@@ -180,6 +183,15 @@ class OrderService(
 
         // Checkout succeeded — the cart is now consumed.
         cartItems.forEach { cartItemRepository.delete(it) }
+
+        notificationService.notify(
+            user = customer,
+            type = NotificationType.ORDER_CREATED,
+            title = "Order placed",
+            message = "Your order ${order.orderNumber} has been placed successfully.",
+            referenceType = "ORDER",
+            referenceId = order.id
+        )
 
         return orderMapper.toResponse(order, orderItems)
     }
@@ -305,6 +317,14 @@ class OrderService(
                         payment.paidAt = Instant.now()
                         paymentRepository.save(payment)
                     }
+                    notificationService.notify(
+                        user = order.customer,
+                        type = NotificationType.PAYMENT_SUCCESS,
+                        title = "Payment received",
+                        message = "Cash payment for order ${order.orderNumber} has been collected.",
+                        referenceType = "ORDER",
+                        referenceId = order.id
+                    )
                 }
             }
             else -> { /* No inventory/payment side-effect for other transitions. */ }
@@ -314,6 +334,35 @@ class OrderService(
         orderRepository.save(order)
         orderStatusHistoryRepository.save(
             OrderStatusHistory(order = order, status = newStatus, note = note, changedBy = actingUser)
+        )
+
+        sendStatusNotification(order, newStatus)
+    }
+
+    /** Spec section 13: notify the customer on order created/confirmed/shipped/delivered/cancelled. */
+    private fun sendStatusNotification(order: Order, newStatus: OrderStatus) {
+        val (type, title, message) = when (newStatus) {
+            OrderStatus.CONFIRMED -> Triple(
+                NotificationType.ORDER_CONFIRMED, "Order confirmed",
+                "Your order ${order.orderNumber} has been confirmed."
+            )
+            OrderStatus.SHIPPED -> Triple(
+                NotificationType.ORDER_SHIPPED, "Order shipped",
+                "Your order ${order.orderNumber} is on its way."
+            )
+            OrderStatus.DELIVERED -> Triple(
+                NotificationType.ORDER_DELIVERED, "Order delivered",
+                "Your order ${order.orderNumber} has been delivered."
+            )
+            OrderStatus.CANCELLED -> Triple(
+                NotificationType.ORDER_CANCELLED, "Order cancelled",
+                "Your order ${order.orderNumber} has been cancelled."
+            )
+            else -> return
+        }
+        notificationService.notify(
+            user = order.customer, type = type, title = title, message = message,
+            referenceType = "ORDER", referenceId = order.id
         )
     }
 

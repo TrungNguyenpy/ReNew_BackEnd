@@ -6,6 +6,8 @@ import com.usedmarket.common.exception.DuplicateResourceException
 import com.usedmarket.common.exception.ResourceNotFoundException
 import com.usedmarket.inventory.service.InventoryService
 import com.usedmarket.media.CloudinaryService
+import com.usedmarket.notification.entity.NotificationType
+import com.usedmarket.notification.service.NotificationService
 import com.usedmarket.product.dto.ProductCreateRequest
 import com.usedmarket.product.dto.ProductImageResponse
 import com.usedmarket.product.dto.ProductResponse
@@ -22,6 +24,7 @@ import com.usedmarket.product.repository.ProductImageRepository
 import com.usedmarket.product.repository.ProductRepository
 import com.usedmarket.product.repository.ProductSpecificationRepository
 import com.usedmarket.user.entity.User
+import com.usedmarket.wishlist.repository.WishlistItemRepository
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -42,6 +45,8 @@ class ProductService(
     private val productSpecificationRepository: ProductSpecificationRepository,
     private val cloudinaryService: CloudinaryService,
     private val inventoryService: InventoryService,
+    private val wishlistItemRepository: WishlistItemRepository,
+    private val notificationService: NotificationService,
     private val productMapper: ProductMapper
 ) {
 
@@ -169,6 +174,8 @@ class ProductService(
         val brand = brandRepository.findById(request.brandId)
             .orElseThrow { ResourceNotFoundException("Brand not found with id: ${request.brandId}") }
 
+        val oldPrice = product.price
+
         product.name = request.name
         product.slug = request.slug
         product.description = request.description
@@ -202,6 +209,20 @@ class ProductService(
             )
         }
         if (specs.isNotEmpty()) productSpecificationRepository.saveAll(specs)
+
+        // Spec section 13: notify every wishlist owner watching this product when its price drops.
+        if (request.price < oldPrice) {
+            wishlistItemRepository.findByProductId(id).forEach { item ->
+                notificationService.notify(
+                    user = item.wishlist.user,
+                    type = NotificationType.WISHLIST_PRICE_DROP,
+                    title = "Price drop on a wishlist item",
+                    message = "${product.name} dropped in price to ${request.price}.",
+                    referenceType = "PRODUCT",
+                    referenceId = id
+                )
+            }
+        }
 
         val images = productImageRepository.findByProductIdOrderByDisplayOrderAsc(id)
         return productMapper.toResponse(product, images, specs)
